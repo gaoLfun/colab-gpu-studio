@@ -252,7 +252,14 @@ export async function uploadAsset(projectId: string, file: File, onProgress?: (p
     xhr.send(body);
   });
 }
-export const assetUrl = (asset: GalleryAsset, thumbnail = false) => thumbnail ? asset.thumbnail_url || `/api/assets/${asset.id}/thumbnail` : asset.download_url || `/api/assets/${asset.id}/download`;
+export const assetUrl = (asset: GalleryAsset, thumbnail = false) => {
+  const base = thumbnail ? asset.thumbnail_url || `/api/assets/${asset.id}/thumbnail` : asset.download_url || `/api/assets/${asset.id}/download`;
+  const token = sessionToken();
+  if (token && !base.includes('token=')) {
+    return `${base}?token=${encodeURIComponent(token)}`;
+  }
+  return base;
+};
 export const updateAsset = (id: string, favorite: boolean) => apiFetch<GalleryAsset>(`/api/assets/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ favorite }) });
 export const deleteAsset = (id: string) => apiFetch<void>(`/api/assets/${encodeURIComponent(id)}`, { method: 'DELETE' });
 

@@ -155,3 +155,24 @@ def test_seed_minus_one_is_resolved_to_a_real_integer(monkeypatch):
     resolved = resolve_parameters(normalized, {"prompt": "x", "steps": 20, "seed": -1})
     assert resolved["seed"] == 2**31 - 1
     assert isinstance(resolved["seed"], int)
+
+
+def test_resolve_parameters_rejects_empty_required_image():
+    manifest = {
+        "model_id": "demo",
+        "parameters": {
+            "ref_1": {"type": "image", "label": "参考图 1", "required": True, "binding": {"node": "1", "input": "image"}},
+            "ref_2": {"type": "image", "label": "参考图 2", "required": False, "binding": {"node": "1", "input": "image"}},
+        },
+    }
+    graph = {"1": {"class_type": "DemoNode", "inputs": {"image": "default.jpg"}}}
+    normalized = validate_manifest(manifest, graph, OBJECT_INFO)
+
+    # Empty string for required image must fail immediately
+    with pytest.raises(ValueError, match="缺少必填"):
+        resolve_parameters(normalized, {"ref_1": "", "ref_2": ""})
+
+    # Valid image for required, empty for optional should succeed and drop ref_2
+    resolved = resolve_parameters(normalized, {"ref_1": "asset_123.jpg", "ref_2": ""})
+    assert resolved["ref_1"] == "asset_123.jpg"
+    assert "ref_2" not in resolved

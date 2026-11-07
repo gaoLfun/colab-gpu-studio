@@ -37,6 +37,8 @@ def current_user(request: Request):
         return {"id": "owner", "role": "admin", "api_client": True}
     if not raw and request.method in {"GET", "HEAD"}:
         raw = request.cookies.get("studio_session", "")
+        if not raw:
+            raw = request.query_params.get("token", "")
     payload = read_session(raw)
     if not payload or not payload.get("uid"):
         raise APIError("UNAUTHENTICATED", "请先登录独立 GPU 工作台", 401)

@@ -13,7 +13,7 @@ function dims(asset: GalleryAsset): string {
 }
 
 export function GalleryPanel({
-  gallery, onFavorite, onDelete, onOpen, onReuse, onGoCreate,
+  gallery, onFavorite, onDelete, onOpen, onReuse, onGoCreate, onUseAsReference,
 }: {
   gallery: GalleryAsset[];
   onFavorite: (asset: GalleryAsset) => void;
@@ -21,6 +21,7 @@ export function GalleryPanel({
   onOpen: (asset: GalleryAsset) => void;
   onReuse?: (asset: GalleryAsset) => void;
   onGoCreate?: () => void;
+  onUseAsReference?: (asset: GalleryAsset) => void;
 }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
@@ -117,6 +118,12 @@ export function GalleryPanel({
         <div className={styles.floatBar} role="toolbar" aria-label="作品操作">
           <button type="button" onClick={() => onOpen(selected)}><Eye size={17} strokeWidth={1.6} aria-hidden />预览</button>
           <i />
+          {selected.mime.startsWith('image/') && onUseAsReference && (
+            <>
+              <button type="button" onClick={() => onUseAsReference(selected)}><Film size={17} strokeWidth={1.6} aria-hidden />作为视频参考图</button>
+              <i />
+            </>
+          )}
           <button type="button" disabled={!onReuse || !selected.source_job_id} onClick={() => onReuse && onReuse(selected)}><RotateCcw size={17} strokeWidth={1.6} aria-hidden />再次生成</button>
           <i />
           <button type="button" data-danger={confirmDelete} onClick={() => {

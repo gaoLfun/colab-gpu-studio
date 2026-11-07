@@ -12,7 +12,7 @@ type Props = {
   assets: GalleryAsset[];
   uploadProgress: Record<string, number>;
   onChange: (key: string, value: unknown) => void;
-  onUpload: (file: File) => Promise<void>;
+  onUpload: (file: File) => Promise<GalleryAsset | void>;
   /** 已由别处处理的字段（提示词、宽高），这里不再渲染，避免重复。 */
   excludeKeys?: string[];
   /** assets=素材文件；options=常用选项（时长/模式等，直接展示）；advanced=其余全部（默认折叠）。 */
@@ -147,7 +147,12 @@ export function GpuParamForm({ manifest, values, assets, uploadProgress, onChang
           />
         ) : widget === 'file' ? (
           <div className={styles.fileControl}>
-            <select id={`gpu-${key}`} value={String(current ?? '')} onChange={(e) => onChange(key, e.target.value)}>
+            <select
+              id={`gpu-${key}`}
+              value={String(current ?? '')}
+              style={Boolean(parameter.required) && !current ? { borderColor: 'var(--danger, #e53e3e)' } : undefined}
+              onChange={(e) => onChange(key, e.target.value)}
+            >
               <option value="">从素材库选择…</option>
               {assets
                 .filter((asset) => !parameter.type || parameter.type === 'file' || asset.mime.startsWith(`${parameter.type}/`))
@@ -161,13 +166,21 @@ export function GpuParamForm({ manifest, values, assets, uploadProgress, onChang
               accept={parameter.type === 'image' ? 'image/*' : parameter.type === 'video' ? 'video/*' : undefined}
               onChange={async (event) => {
                 const file = event.target.files?.[0];
-                if (file) await onUpload(file);
+                if (file) {
+                  const uploaded = await onUpload(file);
+                  if (uploaded && typeof uploaded === 'object' && 'id' in uploaded) {
+                    onChange(key, uploaded.id);
+                  }
+                }
                 event.target.value = '';
               }}
             />
             {Object.entries(uploadProgress).map(([name, progress]) => (
               <small className={styles.hint} key={name}>正在上传 {name}：{progress}%</small>
             ))}
+            {Boolean(parameter.required) && !current && (
+              <small className={styles.hint} style={{ color: 'var(--danger, #e53e3e)' }}>⚠️ 此素材为必填项，请上传或从素材库选择</small>
+            )}
           </div>
         ) : (
           <input id={`gpu-${key}`} type="text" value={String(current ?? '')} onChange={(e) => onChange(key, e.target.value)} />

@@ -258,8 +258,12 @@ def _check(name: str, spec: Mapping, value: Any) -> Any:
         _fail(f"参数 {name} 类型错误")
     if kind == "object" and not isinstance(value, dict):
         _fail(f"参数 {name} 类型错误")
-    if kind in {"image", "video", "asset"} and not isinstance(value, (str, list, tuple, dict)):
-        _fail(f"参数 {name} 类型错误")
+    if kind in {"image", "video", "asset"}:
+        if not isinstance(value, (str, list, tuple, dict)):
+            _fail(f"参数 {name} 类型错误")
+        if spec.get("required") and (value is None or (isinstance(value, str) and not value.strip())):
+            label = spec.get("label") or name
+            _fail(f"缺少必填素材: {label}")
     choices = spec.get("choices", spec.get("enum"))
     if choices is not None and value not in choices:
         _fail(f"参数 {name} 不在允许选项中")
@@ -463,8 +467,9 @@ def resolve_parameters(manifest: dict, params: dict, preset: dict | None = None)
         if _optional_image(spec) and resolved.get(name) in (None, ""):
             resolved.pop(name, None)  # not given: bind_parameters drops its LoadImage node
             continue
-        if name not in resolved:
-            _fail(f"缺少参数: {name}")
+        if name not in resolved or (spec.get("required") and (resolved.get(name) is None or (isinstance(resolved[name], str) and not resolved[name].strip()))):
+            label = spec.get("label") or name
+            _fail(f"缺少必填参数: {label}")
         value = resolved[name]
         _check(name, spec, value)
         if name.lower() == "seed" and value == -1:

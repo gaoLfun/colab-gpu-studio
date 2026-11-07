@@ -16,7 +16,7 @@ export function supportsReferences(manifest: GpuManifest | null): boolean {
 
 export function ReferencePicker({ manifest, assets, selected, onChange, onUpload }: {
   manifest: GpuManifest | null; assets: GalleryAsset[]; selected: string[];
-  onChange: (ids: string[]) => void; onUpload: (file: File) => Promise<void>;
+  onChange: (ids: string[]) => void; onUpload: (file: File) => Promise<unknown>;
 }) {
   if (!manifest || !supportsReferences(manifest)) return null;
   const available = referenceAssets(assets);

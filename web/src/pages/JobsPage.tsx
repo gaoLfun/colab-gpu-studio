@@ -9,10 +9,25 @@ const WAITING = ['queued', 'pending', 'preparing'];
 const DONE = ['completed', 'succeeded'];
 const FAILED = ['failed', 'failed_final', 'cancelled', 'cancelled_local', 'blocked'];
 
+function readableStage(stage?: string | null): string {
+  switch (stage) {
+    case 'allocating': return '正在分配 Colab GPU 算力…';
+    case 'preparing':
+    case 'restore_env': return '正在准备运行环境…';
+    case 'restore_weights': return '正在高速同步模型权重…';
+    case 'sampling':
+    case 'running': return 'ComfyUI 正在推理生成…';
+    case 'uploading':
+    case 'saving': return '正在上传保存生成结果…';
+    case 'cleaning_up': return '正在安全释放运行时…';
+    default: return '';
+  }
+}
+
 type Filter = 'all' | 'running' | 'completed' | string;
 
 export function TasksPanel({
-  jobs, error, refreshing, onRefresh, onCancel, onRetry, onDetail, onRetain, onInstance,
+  jobs, error, refreshing, onRefresh, onCancel, onRetry, onDetail, onRetain, onInstance, onUseAsReference,
 }: {
   jobs: GpuJob[];
   error: string;
@@ -23,6 +38,7 @@ export function TasksPanel({
   onDetail: (job: GpuJob) => void;
   onRetain?: (job: GpuJob) => void;
   onInstance?: (job: GpuJob) => void;
+  onUseAsReference?: (assetId: string) => void;
 }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
@@ -141,7 +157,7 @@ export function TasksPanel({
                 {(running || waiting) && (
                   <div className={styles.progressBlock}>
                     <div className={styles.progressText}>
-                      <span>{running ? (pct !== null ? `生成中 ${pct}%` : '生成中…') : '排队等待中'}</span>
+                      <span>{readableStage(job.stage) || (running ? (pct !== null ? `生成中 ${pct}%` : '生成中…') : '排队等待中')}</span>
                     </div>
                     <div className={styles.progress} data-indeterminate={pct === null}><span style={pct !== null ? { width: `${pct}%` } : undefined} /></div>
                   </div>
@@ -151,6 +167,17 @@ export function TasksPanel({
 
                 <div className={styles.cardActions}>
                   <button className="button small" style={{ flex: 1 }} type="button" onClick={() => onDetail(job)}>查看详情</button>
+                  {done && !video && job.output_asset_ids?.[0] && onUseAsReference && (
+                    <button
+                      className="button secondary small"
+                      style={{ flex: 1 }}
+                      type="button"
+                      title="将此图作为 MiniMax 视频参考图"
+                      onClick={() => onUseAsReference(job.output_asset_ids![0])}
+                    >
+                      <Film size={13} strokeWidth={1.8} aria-hidden />转为视频参考图
+                    </button>
+                  )}
                   {instanceId && !retained && onRetain && <button className="button secondary small" type="button" onClick={() => onRetain(job)}>保留这台机器</button>}
                   {retained && <span className="pill">已保留{job.retained_until ? `至 ${formatDateTime(String(job.retained_until))}` : ''}</span>}
                   {!terminalStates.has(s) ? (

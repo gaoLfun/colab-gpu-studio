@@ -269,7 +269,7 @@ export default function App() {
   const [runtime, setRuntime] = useState<Provider>('mock');
   const [maxRuntime, setMaxRuntime] = useState(30);
   const [batchCount,setBatchCount] = useState(1);
-  const [batchMode,setBatchMode] = useState<'save'|'smart'|'batch'|'retain'>('save');
+  const [batchMode,setBatchMode] = useState<'save'|'smart'|'batch'|'retain'>('smart');
   const [runtimeChoice, setRuntimeChoice] = useState<RuntimeChoice>({ accountId: '', instanceId: '', lifecycle: 'save', retainIdleMinutes: 15 });
   const [accounts, setAccounts] = useState<GpuAccount[]>([]);
   const [instances, setInstances] = useState<GpuInstance[]>([]);
@@ -505,25 +505,40 @@ export default function App() {
     }
   }
 
-  async function handleUpload(file: File) {
+  async function handleUpload(file: File): Promise<GalleryAsset | undefined> {
     const uploadProjectId = projectId;
-    if (!uploadProjectId) return;
+    if (!uploadProjectId) return undefined;
     setUploadProgress((curr) => ({ ...curr, [file.name]: 0 }));
     try {
       const asset = await uploadAsset(uploadProjectId, file, (progress) => {
         if (currentProjectId.current === uploadProjectId) setUploadProgress((curr) => ({ ...curr, [file.name]: progress }));
       });
-      if (currentProjectId.current !== uploadProjectId || asset.project_id !== uploadProjectId) return;
+      if (currentProjectId.current !== uploadProjectId || asset.project_id !== uploadProjectId) return undefined;
       setReferenceImages((curr) => [asset, ...curr.filter((item) => item.id !== asset.id)]);
       setSelectedAssets((curr) => [...new Set([...curr, asset.id])]);
+      return asset;
     } catch (cause) {
       if (currentProjectId.current === uploadProjectId) setError(`上传 ${file.name}：${apiMessage(cause)}`);
+      return undefined;
     } finally {
       if (currentProjectId.current === uploadProjectId) setUploadProgress((curr) => {
         const next = { ...curr };
         delete next[file.name];
         return next;
       });
+    }
+  }
+
+  function useAsReference(assetOrId: GalleryAsset | string) {
+    const assetId = typeof assetOrId === 'string' ? assetOrId : assetOrId.id;
+    const targetWf = workflows.find((w: GpuWorkflow) => w.workflow_key === 'minimax-h3-ref2v') || workflows.find((w: GpuWorkflow) => w.workflow_key === 'minimax-h3-i2v');
+    if (targetWf) {
+      setWorkflowId(targetWf.id);
+      setModelId(targetWf.model_id);
+      const paramKey = targetWf.workflow_key === 'minimax-h3-ref2v' ? 'ref_1' : 'first_frame';
+      setParams((curr: Record<string, unknown>) => ({ ...curr, [paramKey]: assetId }));
+      setSelectedAssets((curr: string[]) => [...new Set([...curr, assetId])]);
+      setTab('创作');
     }
   }
 
@@ -852,6 +867,7 @@ export default function App() {
             onDetail={(job) => void action('inspect', async () => setDetail(await getGpuJob(job.id)))}
             onRetain={(job) => void retainJob(job)}
             onInstance={(job) => { const instance = instances.find((item) => instanceIdOf(item) === String(job.instance_id || '')); if (instance) { const id = instanceIdOf(instance); setRuntimeChoice({ accountId: instance.account_id || null, instanceId: id, lifecycle: runtimeChoice.lifecycle, retainIdleMinutes: runtimeChoice.retainIdleMinutes }); setTab('算力'); } }}
+            onUseAsReference={useAsReference}
           />
         )}
 
@@ -863,6 +879,7 @@ export default function App() {
             onOpen={setViewer}
             onReuse={(asset) => void reuseAsset(asset)}
             onGoCreate={() => setTab('创作')}
+            onUseAsReference={useAsReference}
           />
         )}
 

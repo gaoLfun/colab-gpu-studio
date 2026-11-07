@@ -151,7 +151,7 @@ async def security_context(request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["X-Frame-Options"] = "DENY"
-    if request.url.path.startswith("/api/"):
+    if request.url.path.startswith("/api/") and not request.url.path.startswith("/api/assets/"):
         response.headers["Cache-Control"] = "private, no-store"
     return response
 
@@ -222,7 +222,7 @@ def login(body: Login, request: Request):
         "studio_session",
         token,
         httponly=True,
-        secure=settings.site_url.startswith("https://"),
+        secure=(request.url.scheme == "https" or request.headers.get("X-Forwarded-Proto") == "https" or settings.site_url.startswith("https://")),
         samesite="lax",
         max_age=43200,
     )
@@ -628,7 +628,12 @@ async def upload_asset(
 @app.get("/api/assets/{asset_id}/preview")
 def download_asset(asset_id: str, user=Depends(current_user), st=Depends(get_store)):
     asset = own(st, "assets", asset_id, user)
-    return FileResponse(asset_path(asset), media_type=asset["mime"], filename=asset["filename"])
+    return FileResponse(
+        asset_path(asset),
+        media_type=asset["mime"],
+        filename=asset["filename"],
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @app.get("/api/assets/{asset_id}/thumbnail")
@@ -636,11 +641,20 @@ def thumbnail(asset_id: str, user=Depends(current_user), st=Depends(get_store)):
     asset = own(st, "assets", asset_id, user)
     if not asset["mime"].startswith("image/"):
         raise APIError("THUMBNAIL_UNAVAILABLE", "非图片素材不提供图片缩略图", 404)
-    with Image.open(asset_path(asset)) as image:
-        image.thumbnail((480, 480))
-        target = io.BytesIO()
-        image.convert("RGB").save(target, "WEBP", quality=80)
-    return Response(target.getvalue(), media_type="image/webp")
+    thumb_dir = settings.data_dir / "thumbnails"
+    thumb_dir.mkdir(parents=True, exist_ok=True)
+    thumb_path = thumb_dir / f"{asset_id}.webp"
+    if not thumb_path.is_file():
+        with Image.open(asset_path(asset)) as image:
+            image.thumbnail((480, 480))
+            target = io.BytesIO()
+            image.convert("RGB").save(target, "WEBP", quality=80)
+            thumb_path.write_bytes(target.getvalue())
+    return Response(
+        thumb_path.read_bytes(),
+        media_type="image/webp",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @app.patch("/api/assets/{asset_id}")

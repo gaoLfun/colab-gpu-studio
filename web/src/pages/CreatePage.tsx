@@ -67,7 +67,7 @@ export function CreatePanel({
   selectedAssets: string[];
   setSelectedAssets: (value: string[]) => void;
   uploadProgress: Record<string, number>;
-  onUpload: (file: File) => Promise<void>;
+  onUpload: (file: File) => Promise<GalleryAsset | void>;
   modelId: string;
   setModelId: (value: string) => void;
   workflowId: string;
@@ -107,6 +107,21 @@ export function CreatePanel({
   }, [workflows]);
 
   const activeWorkflow = workflows.find((item) => item.id === workflowId);
+
+  const missingRequired = useMemo(() => {
+    if (!manifest?.parameters) return [];
+    const raw = manifest.parameters;
+    const entries = Array.isArray(raw)
+      ? raw
+      : Object.entries(raw).map(([key, parameter]) => ({ ...(parameter as Record<string, unknown>), key }));
+    return entries.filter((p: any) => {
+      if (!p.required) return false;
+      const k = p.key || p.id || p.name;
+      if (!k) return false;
+      const val = params[k];
+      return val === undefined || val === null || val === '';
+    });
+  }, [manifest, params]);
   const currentFamily = activeWorkflow ? families.find((f) => f.key === activeWorkflow.workflow_key) : undefined;
   const category: Category = currentFamily?.category || 'image';
   const modelName = (id?: string) => models.find((m) => m.model_id === id)?.display_name || id || '';
@@ -357,7 +372,17 @@ export function CreatePanel({
         <p className="muted small">
           {runtime === 'mock' ? RUNTIME_HELP.mock : `${RUNTIME_HELP.colab}今日限额 ${shown(settings?.budget?.daily_units)} CU。`}
         </p>
-        <button className="button big" disabled={!workflowId || loading === 'submit'} type="button" onClick={onSubmit}>
+        {missingRequired.length > 0 && (
+          <p className="status error" style={{ margin: '8px 0' }} role="alert">
+            ⚠️ 请先上传或选择必填素材：{missingRequired.map((p: any) => p.label || p.name || p.key).join('、')}
+          </p>
+        )}
+        <button
+          className="button big"
+          disabled={!workflowId || loading === 'submit' || missingRequired.length > 0}
+          type="button"
+          onClick={onSubmit}
+        >
           <Sparkles size={18} strokeWidth={1.8} aria-hidden />{loading === 'submit' ? '提交中…' : '立即生成'}
         </button>
         {error && <p className="status error" role="alert">{error}</p>}

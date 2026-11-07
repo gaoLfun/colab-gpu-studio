@@ -613,7 +613,7 @@ def _env_key(commit: str, timeout: float, custom_nodes: list[dict] | None = None
 def _pip_install(comfy: Path, timeout: float) -> None:
     base = [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-q"]
     _run([*base, "-r", str(comfy / "requirements.txt")], cwd=comfy, timeout=timeout)
-    _run([*base, "huggingface_hub"], cwd=comfy, timeout=timeout)
+    _run([*base, "huggingface_hub", "hf_transfer"], cwd=comfy, timeout=timeout)
 
 
 def _pack_env(comfy: Path, site: Path, before: dict[str, int], key: str, out: Path) -> dict:
@@ -1081,6 +1081,13 @@ def _restore_weights(
             except Exception as exc:  # noqa: BLE001 - preserve explicit Drive failure
                 target.unlink(missing_ok=True)
                 raise WorkerError(f"Drive weight import failed: {_safe_error(exc)[:200]}") from exc
+        try:
+            import importlib.util
+
+            if importlib.util.find_spec("hf_transfer") is not None:
+                os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+        except Exception:
+            pass
         try:
             from huggingface_hub import hf_hub_download
         except Exception as exc:
